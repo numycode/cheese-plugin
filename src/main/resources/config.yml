@@ -21,5 +21,10 @@ nestedContainerMaxDepth: 10
 # blocking a player from rearranging gold they already hold. See CreativeGoldGuard.
 blockGoldFromCreativeMenu: true
 
+# Cancel placing Gold Ingots/Nuggets into an empty Item Frame, onto an Armor Stand, or into a
+# Decorated Pot — Creative mode doesn't consume the item on placement, so these would otherwise
+# duplicate gold. See DuplicationGuard.
+blockGoldDuplicationTricks: true
+
 storage:
   file: cheese.db

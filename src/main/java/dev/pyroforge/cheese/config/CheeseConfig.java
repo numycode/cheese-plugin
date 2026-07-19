@@ -13,6 +13,7 @@ public final class CheeseConfig {
     private final int nestedContainerMaxDepth;
     private final String storageFileName;
     private final boolean blockGoldFromCreativeMenu;
+    private final boolean blockGoldDuplicationTricks;
 
     public CheeseConfig(FileConfiguration config) {
         this.defaultMaxSupply = config.getLong("maxSupply", 8100);
@@ -21,6 +22,7 @@ public final class CheeseConfig {
         this.nestedContainerMaxDepth = config.getInt("nestedContainerMaxDepth", 10);
         this.storageFileName = config.getString("storage.file", "cheese.db");
         this.blockGoldFromCreativeMenu = config.getBoolean("blockGoldFromCreativeMenu", true);
+        this.blockGoldDuplicationTricks = config.getBoolean("blockGoldDuplicationTricks", true);
     }
 
     public long getDefaultMaxSupply() {
@@ -45,5 +47,9 @@ public final class CheeseConfig {
 
     public boolean isBlockGoldFromCreativeMenu() {
         return blockGoldFromCreativeMenu;
+    }
+
+    public boolean isBlockGoldDuplicationTricks() {
+        return blockGoldDuplicationTricks;
     }
 }

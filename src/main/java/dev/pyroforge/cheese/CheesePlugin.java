@@ -12,8 +12,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.pyroforge.cheese.config.CheeseConfig;
 import dev.pyroforge.cheese.creative.CreativeGoldGuard;
+import dev.pyroforge.cheese.duplication.DuplicationGuard;
 import dev.pyroforge.cheese.economy.GoldCounter;
 import dev.pyroforge.cheese.listener.CreativeInventoryListener;
+import dev.pyroforge.cheese.listener.DuplicationGuardListener;
 import dev.pyroforge.cheese.scan.FullEconomyScanner;
 import dev.pyroforge.cheese.scan.ScanResult;
 import dev.pyroforge.cheese.storage.EconomyStorage;
@@ -60,6 +62,12 @@ public class CheesePlugin extends JavaPlugin {
             GoldCounter guardCounter = new GoldCounter(cheeseConfig.getNestedContainerMaxDepth());
             CreativeGoldGuard guard = new CreativeGoldGuard(guardCounter, CREATIVE_GUARD_DECAY_TICKS);
             getServer().getPluginManager().registerEvents(new CreativeInventoryListener(guard), this);
+        }
+
+        if (cheeseConfig.isBlockGoldDuplicationTricks()) {
+            GoldCounter dupeCounter = new GoldCounter(cheeseConfig.getNestedContainerMaxDepth());
+            DuplicationGuard dupeGuard = new DuplicationGuard(dupeCounter);
+            getServer().getPluginManager().registerEvents(new DuplicationGuardListener(dupeGuard), this);
         }
     }
 
