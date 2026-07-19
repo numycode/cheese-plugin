@@ -17,5 +17,9 @@ includePlayerInventoriesInAudit: true
 # Recursion cap for nested containers (Bundles, item-form Shulker Boxes).
 nestedContainerMaxDepth: 10
 
+# Cancel InventoryCreativeEvent grabs of Gold Ingot/Nugget from the Creative menu, without
+# blocking a player from rearranging gold they already hold. See CreativeGoldGuard.
+blockGoldFromCreativeMenu: true
+
 storage:
   file: cheese.db

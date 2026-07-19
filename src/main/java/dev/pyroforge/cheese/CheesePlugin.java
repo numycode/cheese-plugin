@@ -11,12 +11,19 @@ import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.pyroforge.cheese.config.CheeseConfig;
+import dev.pyroforge.cheese.creative.CreativeGoldGuard;
 import dev.pyroforge.cheese.economy.GoldCounter;
+import dev.pyroforge.cheese.listener.CreativeInventoryListener;
 import dev.pyroforge.cheese.scan.FullEconomyScanner;
 import dev.pyroforge.cheese.scan.ScanResult;
 import dev.pyroforge.cheese.storage.EconomyStorage;
 
 public class CheesePlugin extends JavaPlugin {
+
+    // How long a "recently released gold" credit stays valid for CreativeGoldGuard, in ticks.
+    // Wide enough to cover a single drag/split gesture's sequential packets, narrow enough that
+    // it can't be "banked" and spent on an unrelated later grab.
+    private static final int CREATIVE_GUARD_DECAY_TICKS = 4;
 
     private CheeseConfig cheeseConfig;
     private EconomyStorage storage;
@@ -46,6 +53,13 @@ public class CheesePlugin extends JavaPlugin {
         } catch (SQLException e) {
             getLogger().log(Level.SEVERE, "Failed to read Cheese economy state — disabling.", e);
             getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        if (cheeseConfig.isBlockGoldFromCreativeMenu()) {
+            GoldCounter guardCounter = new GoldCounter(cheeseConfig.getNestedContainerMaxDepth());
+            CreativeGoldGuard guard = new CreativeGoldGuard(guardCounter, CREATIVE_GUARD_DECAY_TICKS);
+            getServer().getPluginManager().registerEvents(new CreativeInventoryListener(guard), this);
         }
     }
 
