@@ -119,6 +119,58 @@ public final class EconomyStorage implements AutoCloseable {
         }
     }
 
+    /**
+     * All-or-nothing admission for gold that can't be partially created (e.g. one furnace smelt
+     * yields exactly one ingot — there's no such thing as 4/9ths of one). Returns whether the
+     * full amount fit under {@code maxSupply}; if not, nothing is persisted and the caller should
+     * cancel the event that would have created it.
+     */
+    public boolean tryIncreaseCurrentSupplyExact(long units) throws SQLException {
+        synchronized (lock) {
+            if (getCurrentSupply() + units > getMaxSupply()) {
+                return false;
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE economy_state SET current_supply = current_supply + ? WHERE id = 1")) {
+                statement.setLong(1, units);
+                statement.executeUpdate();
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Partial admission for gold that arrives as a batch of separate stacks (mob drops, natural
+     * loot), where trimming to whatever headroom remains is more graceful than voiding the whole
+     * batch. Returns the amount actually admitted, which may be less than requested (or 0).
+     */
+    public long tryIncreaseCurrentSupply(long requestedUnits) throws SQLException {
+        synchronized (lock) {
+            long headroom = Math.max(0, getMaxSupply() - getCurrentSupply());
+            long grantable = Math.min(requestedUnits, headroom);
+            if (grantable > 0) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE economy_state SET current_supply = current_supply + ? WHERE id = 1")) {
+                    statement.setLong(1, grantable);
+                    statement.executeUpdate();
+                }
+            }
+            return grantable;
+        }
+    }
+
+    /** Removes gold from circulation without touching the cap (survival destruction events). */
+    public void decreaseCurrentSupply(long units) throws SQLException {
+        synchronized (lock) {
+            long newSupply = Math.max(0, getCurrentSupply() - units);
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE economy_state SET current_supply = ? WHERE id = 1")) {
+                statement.setLong(1, newSupply);
+                statement.executeUpdate();
+            }
+        }
+    }
+
     private long readLong(String sql) throws SQLException {
         synchronized (lock) {
             try (Statement statement = connection.createStatement();

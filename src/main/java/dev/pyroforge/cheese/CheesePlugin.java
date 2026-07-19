@@ -16,11 +16,14 @@ import dev.pyroforge.cheese.command.CheeseCommand;
 import dev.pyroforge.cheese.creative.CreativeGoldGuard;
 import dev.pyroforge.cheese.duplication.DuplicationGuard;
 import dev.pyroforge.cheese.economy.GoldCounter;
+import dev.pyroforge.cheese.economy.GoldSupplyGate;
 import dev.pyroforge.cheese.listener.CreativeInventoryListener;
 import dev.pyroforge.cheese.listener.DuplicationGuardListener;
 import dev.pyroforge.cheese.scan.FullEconomyScanner;
 import dev.pyroforge.cheese.scan.ScanResult;
 import dev.pyroforge.cheese.storage.EconomyStorage;
+import dev.pyroforge.cheese.survival.GoldCreationListener;
+import dev.pyroforge.cheese.survival.GoldDestructionListener;
 
 public class CheesePlugin extends JavaPlugin {
 
@@ -78,6 +81,15 @@ public class CheesePlugin extends JavaPlugin {
             command.setExecutor(cheeseCommand);
             command.setTabCompleter(cheeseCommand);
         }
+
+        // Survival creation/destruction hooks — cheap insurance on this all-Creative server (see
+        // docs/SPEC.md build order step 5), always on since neither is separately toggleable in
+        // the config file section of the spec.
+        GoldCounter survivalCounter = new GoldCounter(cheeseConfig.getNestedContainerMaxDepth());
+        GoldSupplyGate supplyGate = new GoldSupplyGate(storage, survivalCounter);
+        getServer().getPluginManager().registerEvents(new GoldCreationListener(supplyGate, getLogger()), this);
+        getServer().getPluginManager().registerEvents(
+                new GoldDestructionListener(storage, survivalCounter, getLogger()), this);
     }
 
     private void runSeedScan() {

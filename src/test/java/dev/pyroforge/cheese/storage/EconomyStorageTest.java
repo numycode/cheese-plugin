@@ -76,6 +76,76 @@ class EconomyStorageTest {
     }
 
     @Test
+    void tryIncreaseCurrentSupplyExactAdmitsWhenThereIsRoom() throws Exception {
+        storage.seedInitialState(150, 200);
+
+        boolean admitted = storage.tryIncreaseCurrentSupplyExact(50);
+
+        assertTrue(admitted);
+        assertEquals(200, storage.getCurrentSupply());
+        assertEquals(200, storage.getMaxSupply());
+    }
+
+    @Test
+    void tryIncreaseCurrentSupplyExactRejectsAllOrNothingWhenItWouldExceedTheCap() throws Exception {
+        storage.seedInitialState(150, 200);
+
+        boolean admitted = storage.tryIncreaseCurrentSupplyExact(51);
+
+        assertFalse(admitted);
+        assertEquals(150, storage.getCurrentSupply());
+    }
+
+    @Test
+    void tryIncreaseCurrentSupplyGrantsTheFullAmountWhenItFits() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        long granted = storage.tryIncreaseCurrentSupply(50);
+
+        assertEquals(50, granted);
+        assertEquals(200, storage.getCurrentSupply());
+    }
+
+    @Test
+    void tryIncreaseCurrentSupplyPartiallyGrantsWhenOnlySomeFits() throws Exception {
+        storage.seedInitialState(150, 200);
+
+        long granted = storage.tryIncreaseCurrentSupply(100);
+
+        assertEquals(50, granted);
+        assertEquals(200, storage.getCurrentSupply());
+    }
+
+    @Test
+    void tryIncreaseCurrentSupplyGrantsNothingWhenAlreadyAtCap() throws Exception {
+        storage.seedInitialState(200, 200);
+
+        long granted = storage.tryIncreaseCurrentSupply(10);
+
+        assertEquals(0, granted);
+        assertEquals(200, storage.getCurrentSupply());
+    }
+
+    @Test
+    void decreaseCurrentSupplyLowersItWithoutTouchingTheCap() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        storage.decreaseCurrentSupply(50);
+
+        assertEquals(100, storage.getCurrentSupply());
+        assertEquals(8100, storage.getMaxSupply());
+    }
+
+    @Test
+    void decreaseCurrentSupplyNeverGoesNegative() throws Exception {
+        storage.seedInitialState(10, 8100);
+
+        storage.decreaseCurrentSupply(50);
+
+        assertEquals(0, storage.getCurrentSupply());
+    }
+
+    @Test
     void stateSurvivesReopeningTheSameFile() throws Exception {
         File dbFile = new File(tempDir, "persist.db");
         try (EconomyStorage first = new EconomyStorage(dbFile)) {
