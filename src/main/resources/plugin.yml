@@ -1,0 +1,14 @@
+name: CheesePlugin
+version: '${version}'
+main: dev.pyroforge.cheese.CheesePlugin
+api-version: '26.1'
+author: numycode
+description: Tracks and caps the Cheese (Gold Ingot/Nugget) currency economy.
+
+permissions:
+  cheese.admin:
+    description: Access to /cheese cap, add, and remove
+    default: false
+  cheese.use:
+    description: Access to read-only /cheese commands (scan --loaded, cap get)
+    default: true
