@@ -54,6 +54,22 @@ public final class FullEconomyScanner {
         this.includePlayerInventories = includePlayerInventories;
     }
 
+    /**
+     * Synchronous scan of only the chunks already resident in memory right now — no async chunk
+     * loading, so it's fast and safe to run anytime (backs {@code /cheese scan --loaded}). Must
+     * be called from the main thread.
+     */
+    public ScanResult scanLoaded(List<World> worlds) {
+        ScanResult result = new ScanResult();
+        for (World world : worlds) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                scanChunk(chunk, result);
+            }
+        }
+        addPlayerInventories(result);
+        return result;
+    }
+
     /** Must be called from the main thread. {@code onComplete} also fires on the main thread. */
     public void scan(List<World> worlds, Consumer<ScanResult> onComplete) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -107,6 +123,11 @@ public final class FullEconomyScanner {
     }
 
     private void finishScan(ScanResult result, Consumer<ScanResult> onComplete) {
+        addPlayerInventories(result);
+        onComplete.accept(result);
+    }
+
+    private void addPlayerInventories(ScanResult result) {
         if (includePlayerInventories) {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 result.add("(players)", "player-inventory", goldCounter.countInventory(player.getInventory()));
@@ -116,7 +137,6 @@ public final class FullEconomyScanner {
         // Offline players are intentionally not scanned here: Paper exposes no public API for
         // an offline player's inventory/ender chest (see docs/SPEC.md). Their holdings are a
         // known, expected gap in this total, not a dupe.
-        onComplete.accept(result);
     }
 
     private void scanChunk(Chunk chunk, ScanResult result) {

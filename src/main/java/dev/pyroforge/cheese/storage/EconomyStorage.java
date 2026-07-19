@@ -76,6 +76,49 @@ public final class EconomyStorage implements AutoCloseable {
         }
     }
 
+    public void setMaxSupply(long maxSupplyUnits) throws SQLException {
+        synchronized (lock) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE economy_state SET max_supply = ? WHERE id = 1")) {
+                statement.setLong(1, maxSupplyUnits);
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    /**
+     * Mints new gold into circulation: raises currentSupply and maxSupply by the same amount,
+     * in one transaction (see docs/SPEC.md "/cheese add" — minting Cheese also raises the cap
+     * by the same amount, so the used/allowed ratio stays meaningful).
+     */
+    public void mint(long units) throws SQLException {
+        adjustBothBy(units);
+    }
+
+    /** Destroys gold out of circulation: lowers currentSupply and maxSupply by the same amount. */
+    public void destroy(long units) throws SQLException {
+        adjustBothBy(-units);
+    }
+
+    private void adjustBothBy(long deltaUnits) throws SQLException {
+        synchronized (lock) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE economy_state SET current_supply = current_supply + ?, max_supply = max_supply + ? "
+                            + "WHERE id = 1")) {
+                statement.setLong(1, deltaUnits);
+                statement.setLong(2, deltaUnits);
+                statement.executeUpdate();
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        }
+    }
+
     private long readLong(String sql) throws SQLException {
         synchronized (lock) {
             try (Statement statement = connection.createStatement();

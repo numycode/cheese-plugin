@@ -14,6 +14,7 @@ public final class CheeseConfig {
     private final String storageFileName;
     private final boolean blockGoldFromCreativeMenu;
     private final boolean blockGoldDuplicationTricks;
+    private final int fullScanCooldownSeconds;
 
     public CheeseConfig(FileConfiguration config) {
         this.defaultMaxSupply = config.getLong("maxSupply", 8100);
@@ -23,6 +24,7 @@ public final class CheeseConfig {
         this.storageFileName = config.getString("storage.file", "cheese.db");
         this.blockGoldFromCreativeMenu = config.getBoolean("blockGoldFromCreativeMenu", true);
         this.blockGoldDuplicationTricks = config.getBoolean("blockGoldDuplicationTricks", true);
+        this.fullScanCooldownSeconds = config.getInt("fullScanCooldownSeconds", 3600);
     }
 
     public long getDefaultMaxSupply() {
@@ -51,5 +53,9 @@ public final class CheeseConfig {
 
     public boolean isBlockGoldDuplicationTricks() {
         return blockGoldDuplicationTricks;
+    }
+
+    public int getFullScanCooldownSeconds() {
+        return fullScanCooldownSeconds;
     }
 }

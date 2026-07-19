@@ -5,9 +5,14 @@ api-version: '26.1'
 author: numycode
 description: Tracks and caps the Cheese (Gold Ingot/Nugget) currency economy.
 
+commands:
+  cheese:
+    description: Manage the Cheese (Gold Ingot/Nugget) economy.
+    usage: /<command> <scan|cap|add|remove|audit>
+
 permissions:
   cheese.admin:
-    description: Access to /cheese cap, add, and remove
+    description: Access to /cheese cap set, add, remove, scan --full, and audit
     default: false
   cheese.use:
     description: Access to read-only /cheese commands (scan --loaded, cap get)

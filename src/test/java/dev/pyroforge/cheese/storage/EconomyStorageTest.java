@@ -46,6 +46,36 @@ class EconomyStorageTest {
     }
 
     @Test
+    void setMaxSupplyLeavesCurrentSupplyUntouched() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        storage.setMaxSupply(9000);
+
+        assertEquals(150, storage.getCurrentSupply());
+        assertEquals(9000, storage.getMaxSupply());
+    }
+
+    @Test
+    void mintRaisesBothCurrentAndMaxSupplyByTheSameAmount() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        storage.mint(50);
+
+        assertEquals(200, storage.getCurrentSupply());
+        assertEquals(8150, storage.getMaxSupply());
+    }
+
+    @Test
+    void destroyLowersBothCurrentAndMaxSupplyByTheSameAmount() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        storage.destroy(50);
+
+        assertEquals(100, storage.getCurrentSupply());
+        assertEquals(8050, storage.getMaxSupply());
+    }
+
+    @Test
     void stateSurvivesReopeningTheSameFile() throws Exception {
         File dbFile = new File(tempDir, "persist.db");
         try (EconomyStorage first = new EconomyStorage(dbFile)) {

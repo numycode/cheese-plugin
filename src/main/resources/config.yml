@@ -26,5 +26,10 @@ blockGoldFromCreativeMenu: true
 # duplicate gold. See DuplicationGuard.
 blockGoldDuplicationTricks: true
 
+# Minimum seconds between admin-triggered "/cheese scan --full" runs (and "/cheese audit", which
+# runs one). Even batched/async, a full sweep touches a lot of disk I/O — this is cheap insurance
+# against spamming it. Safe to lower toward 0 on a small world/server.
+fullScanCooldownSeconds: 3600
+
 storage:
   file: cheese.db

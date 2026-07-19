@@ -8,9 +8,11 @@ import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.pyroforge.cheese.config.CheeseConfig;
+import dev.pyroforge.cheese.command.CheeseCommand;
 import dev.pyroforge.cheese.creative.CreativeGoldGuard;
 import dev.pyroforge.cheese.duplication.DuplicationGuard;
 import dev.pyroforge.cheese.economy.GoldCounter;
@@ -68,6 +70,13 @@ public class CheesePlugin extends JavaPlugin {
             GoldCounter dupeCounter = new GoldCounter(cheeseConfig.getNestedContainerMaxDepth());
             DuplicationGuard dupeGuard = new DuplicationGuard(dupeCounter);
             getServer().getPluginManager().registerEvents(new DuplicationGuardListener(dupeGuard), this);
+        }
+
+        CheeseCommand cheeseCommand = new CheeseCommand(this, cheeseConfig, storage);
+        PluginCommand command = getCommand("cheese");
+        if (command != null) {
+            command.setExecutor(cheeseCommand);
+            command.setTabCompleter(cheeseCommand);
         }
     }
 
