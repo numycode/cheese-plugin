@@ -103,9 +103,18 @@ public final class FullEconomyScanner {
                 wc.world.getChunkAtAsync(wc.coord.x(), wc.coord.z(), false).thenAccept(chunk ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             try {
+                                if (chunk == null) {
+                                    // Listed in the region file but not actually generated/loadable
+                                    // (e.g. a proto-chunk stub) — gen=false resolves to null instead
+                                    // of loading it. Nothing to scan; skip rather than NPE.
+                                    plugin.getLogger().warning("Full scan: chunk (" + wc.coord.x() + ", "
+                                            + wc.coord.z() + ") in world " + wc.world.getName()
+                                            + " could not be loaded — skipping it.");
+                                    return;
+                                }
                                 scanChunk(chunk, result);
                             } finally {
-                                if (!alreadyLoaded) {
+                                if (chunk != null && !alreadyLoaded) {
                                     wc.world.unloadChunk(chunk);
                                 }
                                 pending.decrementAndGet();
