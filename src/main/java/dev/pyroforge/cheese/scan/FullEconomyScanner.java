@@ -43,6 +43,19 @@ import dev.pyroforge.cheese.economy.GoldCounter;
 public final class FullEconomyScanner {
 
     private static final int CHUNKS_PER_TICK = 5;
+    // A region file's location table marks a chunk as "present" the moment world generation
+    // touches it at all, including chunks generation only partially processed as a side effect of
+    // finishing a NEIGHBORING chunk (structure/noise/biome passes need data from nearby chunks).
+    // Reproduced firsthand: of ~1587 chunks RegionFileChunkLister found around a freshly generated
+    // spawn area, the vast majority were this kind of "on disk but never reached FULL status"
+    // halo — world.getChunkAtAsync(x, z, gen=false) resolves to null for these FOREVER, not
+    // transiently, since gen=false explicitly refuses to advance a chunk's generation. Blindly
+    // retrying those is pure waste (burns through this many retries × ~1500 chunks before the
+    // scan finishes). world.isChunkGenerated(x, z) is the actual authoritative signal — skip
+    // (not retry) anything that fails it. What's left after that filter is retried a few times
+    // only as a safety net for a genuine transient race (e.g. right after server startup, before
+    // scan()'s forced world.save() below has necessarily been observed by the chunk system yet).
+    private static final int MAX_CHUNK_LOAD_RETRIES = 5;
 
     private final Plugin plugin;
     private final GoldCounter goldCounter;
@@ -72,6 +85,16 @@ public final class FullEconomyScanner {
 
     /** Must be called from the main thread. {@code onComplete} also fires on the main thread. */
     public void scan(List<World> worlds, Consumer<ScanResult> onComplete) {
+        // Force a synchronous flush before reading raw region files off-thread. Reproduced
+        // firsthand: on a brand-new world, calling this right after "Prepared spawn area" (i.e.
+        // exactly when the plugin's first-run seed scan fires) found ZERO chunks on disk — the
+        // freshly-generated spawn chunks existed only in memory, hadn't been saved yet, and
+        // RegionFileChunkLister silently read an empty/near-empty region folder. That would seed
+        // currentSupply=0 with no warning at all on a world that may already hold plenty of gold
+        // — exactly what docs/SPEC.md calls out as "not optional" to get right.
+        for (World world : worlds) {
+            world.save();
+        }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<World, List<ChunkCoord>> perWorldChunks = new LinkedHashMap<>();
             for (World world : worlds) {
@@ -89,7 +112,7 @@ public final class FullEconomyScanner {
     private void runBatchedScan(Map<World, List<ChunkCoord>> perWorldChunks, Consumer<ScanResult> onComplete) {
         ScanResult result = new ScanResult();
         Deque<WorldChunk> queue = new ArrayDeque<>();
-        perWorldChunks.forEach((world, coords) -> coords.forEach(c -> queue.add(new WorldChunk(world, c))));
+        perWorldChunks.forEach((world, coords) -> coords.forEach(c -> queue.add(new WorldChunk(world, c, 0))));
 
         AtomicInteger pending = new AtomicInteger(0);
         AtomicBoolean dispatchDone = new AtomicBoolean(false);
@@ -98,18 +121,20 @@ public final class FullEconomyScanner {
         taskHolder[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (int i = 0; i < CHUNKS_PER_TICK && !queue.isEmpty(); i++) {
                 WorldChunk wc = queue.poll();
+                // Present in the region file's location table but never actually reached FULL
+                // generation status (see MAX_CHUNK_LOAD_RETRIES's doc) — gen=false will never
+                // resolve these no matter how many times we ask, so don't even try. This isn't an
+                // error; it's the normal, expected majority of what a region file lists.
+                if (!wc.world.isChunkGenerated(wc.coord.x(), wc.coord.z())) {
+                    continue;
+                }
                 boolean alreadyLoaded = wc.world.isChunkLoaded(wc.coord.x(), wc.coord.z());
                 pending.incrementAndGet();
                 wc.world.getChunkAtAsync(wc.coord.x(), wc.coord.z(), false).thenAccept(chunk ->
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             try {
                                 if (chunk == null) {
-                                    // Listed in the region file but not actually generated/loadable
-                                    // (e.g. a proto-chunk stub) — gen=false resolves to null instead
-                                    // of loading it. Nothing to scan; skip rather than NPE.
-                                    plugin.getLogger().warning("Full scan: chunk (" + wc.coord.x() + ", "
-                                            + wc.coord.z() + ") in world " + wc.world.getName()
-                                            + " could not be loaded — skipping it.");
+                                    retryOrGiveUp(wc, queue);
                                     return;
                                 }
                                 scanChunk(chunk, result);
@@ -129,6 +154,16 @@ public final class FullEconomyScanner {
                 finishScan(result, onComplete);
             }
         }, 0L, 1L);
+    }
+
+    private void retryOrGiveUp(WorldChunk wc, Deque<WorldChunk> queue) {
+        if (wc.attempt < MAX_CHUNK_LOAD_RETRIES) {
+            queue.add(new WorldChunk(wc.world, wc.coord, wc.attempt + 1));
+            return;
+        }
+        plugin.getLogger().warning("Full scan: chunk (" + wc.coord.x() + ", " + wc.coord.z()
+                + ") in world " + wc.world.getName() + " is generated but could not be loaded after "
+                + MAX_CHUNK_LOAD_RETRIES + " attempts — skipping it.");
     }
 
     private void finishScan(ScanResult result, Consumer<ScanResult> onComplete) {
@@ -183,6 +218,6 @@ public final class FullEconomyScanner {
         }
     }
 
-    private record WorldChunk(World world, ChunkCoord coord) {
+    private record WorldChunk(World world, ChunkCoord coord, int attempt) {
     }
 }
