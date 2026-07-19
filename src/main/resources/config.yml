@@ -1,0 +1,21 @@
+# Default cap used only when the economy has never been seeded before (see storage.file).
+# After the first-run scan, the tracked cap lives in SQLite and this value is no longer read.
+maxSupply: 8100
+
+# Worlds included in block/entity scans. Player and ender-chest scans are always global and
+# are NOT filtered by this list (see docs/SPEC.md).
+worlds:
+  - world
+  - world_nether
+  - world_the_end
+
+# Whether the scan/seed reads online players' carried inventories. Offline players are not
+# scanned yet (see docs/SPEC.md "Player (HumanEntity)" — Bukkit/Paper exposes no public API
+# for an offline player's inventory or ender chest).
+includePlayerInventoriesInAudit: true
+
+# Recursion cap for nested containers (Bundles, item-form Shulker Boxes).
+nestedContainerMaxDepth: 10
+
+storage:
+  file: cheese.db
