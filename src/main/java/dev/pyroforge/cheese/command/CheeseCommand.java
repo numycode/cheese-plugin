@@ -12,6 +12,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
@@ -32,7 +33,11 @@ import dev.pyroforge.cheese.storage.EconomyStorage;
  * and permissions": {@code cheese.use} (default true) covers {@code scan --loaded} and
  * {@code cap get}; everything else — {@code scan --full}, {@code cap set}, {@code add},
  * {@code remove}, {@code audit} — requires {@code cheese.admin} (default false), checked via
- * {@code hasPermission}, never {@code isOp()} (everyone on this server is OP).
+ * {@code hasPermission}, never {@code isOp()} (everyone on this server is OP, so OP status alone
+ * must never imply cheese.admin). The server console is the one deliberate exception to that
+ * check — see {@link #hasPermission(CommandSender, String)} — since whoever has console/RCON
+ * access already has full control over the server (including the SQLite file directly), so
+ * gating it behind an in-game permission node adds no real security, only friction.
  */
 public final class CheeseCommand implements TabExecutor {
 
@@ -79,7 +84,7 @@ public final class CheeseCommand implements TabExecutor {
         }
 
         if (mode.equalsIgnoreCase("--full")) {
-            if (!sender.hasPermission("cheese.admin")) {
+            if (!hasPermission(sender, "cheese.admin")) {
                 deny(sender);
                 return;
             }
@@ -89,7 +94,7 @@ public final class CheeseCommand implements TabExecutor {
             sender.sendMessage("Starting a full Cheese scan — this may take a moment...");
             newScanner().scan(resolveWorlds(), result -> sender.sendMessage(result.toReportString()));
         } else {
-            if (!sender.hasPermission("cheese.use")) {
+            if (!hasPermission(sender, "cheese.use")) {
                 deny(sender);
                 return;
             }
@@ -106,7 +111,7 @@ public final class CheeseCommand implements TabExecutor {
             return;
         }
         if (args[1].equalsIgnoreCase("get")) {
-            if (!sender.hasPermission("cheese.use")) {
+            if (!hasPermission(sender, "cheese.use")) {
                 deny(sender);
                 return;
             }
@@ -117,7 +122,7 @@ public final class CheeseCommand implements TabExecutor {
                 fail(sender, "read the cap", e);
             }
         } else if (args[1].equalsIgnoreCase("set")) {
-            if (!sender.hasPermission("cheese.admin")) {
+            if (!hasPermission(sender, "cheese.admin")) {
                 deny(sender);
                 return;
             }
@@ -144,7 +149,7 @@ public final class CheeseCommand implements TabExecutor {
     // ---- add / remove ----
 
     private void handleMint(CommandSender sender, String[] args, boolean isAdd) {
-        if (!sender.hasPermission("cheese.admin")) {
+        if (!hasPermission(sender, "cheese.admin")) {
             deny(sender);
             return;
         }
@@ -271,7 +276,7 @@ public final class CheeseCommand implements TabExecutor {
     // ---- audit ----
 
     private void handleAudit(CommandSender sender) {
-        if (!sender.hasPermission("cheese.admin")) {
+        if (!hasPermission(sender, "cheese.admin")) {
             deny(sender);
             return;
         }
@@ -358,6 +363,15 @@ public final class CheeseCommand implements TabExecutor {
 
     private void deny(CommandSender sender) {
         sender.sendMessage("You don't have permission to do that.");
+    }
+
+    /**
+     * The server console always passes, regardless of the permission's registered default —
+     * console/RCON access is a machine-level trust boundary, not an in-game one. Every other
+     * sender (including OP'd players) goes through the normal permission check.
+     */
+    private boolean hasPermission(CommandSender sender, String permission) {
+        return sender instanceof ConsoleCommandSender || sender.hasPermission(permission);
     }
 
     private void fail(CommandSender sender, String action, SQLException e) {

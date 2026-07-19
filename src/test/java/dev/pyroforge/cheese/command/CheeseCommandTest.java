@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.List;
 
 import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
@@ -145,6 +146,25 @@ class CheeseCommandTest {
         command.onCommand(player, null, "cheese", new String[] {"scan"});
 
         assertTrue(player.nextMessage().contains("Cheese scan"));
+    }
+
+    @Test
+    void consoleBypassesCheeseAdminEvenWithoutBeingGrantedIt() throws Exception {
+        CommandSender console = server.getConsoleSender();
+
+        command.onCommand(console, null, "cheese", new String[] {"cap", "set", "500"});
+
+        assertEquals(500, storage.getMaxSupply());
+    }
+
+    @Test
+    void opStatusAloneDoesNotGrantCheeseAdmin() throws Exception {
+        player.setOp(true);
+
+        command.onCommand(player, null, "cheese", new String[] {"cap", "set", "500"});
+
+        assertEquals("You don't have permission to do that.", player.nextMessage());
+        assertEquals(8100, storage.getMaxSupply());
     }
 
     private long countGoldUnits(ItemStack[] contents) {
