@@ -156,10 +156,27 @@ class GoldSupplyGateTest {
     }
 
     @Test
-    void removesAnEntireBundleWhenNoneOfItsGoldCanFit() throws Exception {
+    void stripsAllOfABundlesGoldButKeepsTheBundleWhenItHasOtherContents() throws Exception {
         storage.seedInitialState(100, 100);
         List<ItemStack> drops = new ArrayList<>(List.of(bundleOf(
                 new ItemStack(Material.GOLD_NUGGET, 5), new ItemStack(Material.STICK, 1))));
+
+        gate.admitList(drops);
+
+        assertEquals(100, storage.getCurrentSupply());
+        // The gold couldn't be admitted, but the STICK is unrelated and must survive — only the
+        // bundle's gold content gets stripped, not the bundle (or its other contents) itself.
+        assertEquals(1, drops.size());
+        BundleMeta meta = (BundleMeta) drops.get(0).getItemMeta();
+        List<ItemStack> inner = meta.getItems();
+        assertEquals(1, inner.size());
+        assertEquals(Material.STICK, inner.get(0).getType());
+    }
+
+    @Test
+    void removesABundleEntirelyWhenNoneOfItsGoldFitsAndItHasNoOtherContents() throws Exception {
+        storage.seedInitialState(100, 100);
+        List<ItemStack> drops = new ArrayList<>(List.of(bundleOf(new ItemStack(Material.GOLD_NUGGET, 5))));
 
         gate.admitList(drops);
 

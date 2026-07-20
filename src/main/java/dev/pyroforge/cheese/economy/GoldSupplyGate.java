@@ -82,9 +82,11 @@ public final class GoldSupplyGate {
 
     /**
      * Trims gold across a plain list of stacks (a top-level batch, or a Bundle's contents) down to
-     * {@code allowedUnits}, in place. A stack that had gold but none of it fits is removed
-     * entirely — including any nested container, so no unaccounted gold survives inside it —
-     * while a stack with no gold at all is never touched.
+     * {@code allowedUnits}, in place. A bare gold stack with none of it admitted is removed
+     * entirely (it IS the gold, nothing else to preserve); a container stack (Bundle/Shulker)
+     * whose gold is fully rejected is only removed if that leaves it completely empty — if it
+     * still holds non-gold items, it's kept with just its gold portion stripped out. A stack with
+     * no gold at all is never touched.
      */
     private long trimList(List<ItemStack> stacks, long allowedUnits, int depth) {
         long remaining = allowedUnits;
@@ -99,7 +101,7 @@ public final class GoldSupplyGate {
             long stackKept = trimStack(stack, Math.max(0, remaining), depth);
             remaining -= stackKept;
             kept += stackKept;
-            if (stackKept == 0) {
+            if (isNowEmpty(stack, stackKept)) {
                 iterator.remove();
             }
         }
@@ -108,8 +110,8 @@ public final class GoldSupplyGate {
 
     /**
      * Trims gold within a fixed-slot {@link Inventory} (a filled Shulker Box's contents) down to
-     * {@code allowedUnits}, preserving slot indices — nulling out a slot whose gold is fully
-     * rejected rather than shifting the ones after it.
+     * {@code allowedUnits}, preserving slot indices — nulling out a slot only when it ends up
+     * completely empty (see {@link #trimList}), rather than shifting the ones after it.
      */
     private long trimInventory(Inventory inventory, long allowedUnits, int depth) {
         long remaining = allowedUnits;
@@ -124,21 +126,51 @@ public final class GoldSupplyGate {
             long stackKept = trimStack(stack, Math.max(0, remaining), depth);
             remaining -= stackKept;
             kept += stackKept;
-            inventory.setItem(slot, stackKept == 0 ? null : stack);
+            inventory.setItem(slot, isNowEmpty(stack, stackKept) ? null : stack);
         }
         return kept;
     }
 
     /**
+     * Whether {@code stack} (which had {@code > 0} gold units before trimming) should disappear
+     * entirely now. A bare gold stack is its own gold, so 0 kept means nothing is left of it. A
+     * container is only "empty" once it holds nothing at all, gold or otherwise — its non-gold
+     * contents must survive even when all of its gold was rejected.
+     */
+    private boolean isNowEmpty(ItemStack stack, long stackKept) {
+        Material type = stack.getType();
+        if (type == Material.GOLD_INGOT || type == Material.GOLD_NUGGET) {
+            return stackKept == 0;
+        }
+        if (!stack.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta instanceof BundleMeta bundleMeta) {
+            return bundleMeta.getItems().isEmpty();
+        }
+        if (meta instanceof BlockStateMeta blockStateMeta && blockStateMeta.hasBlockState()
+                && blockStateMeta.getBlockState() instanceof InventoryHolder holder) {
+            for (ItemStack inner : holder.getInventory().getContents()) {
+                if (inner != null && inner.getType() != Material.AIR) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Trims a single stack (already known to hold {@code > 0} gold units) down to {@code allowed},
-     * mutating it in place for a partial keep. Returns units actually kept; 0 means the caller
-     * should drop this stack (and anything nested inside it) entirely.
+     * mutating it in place for a partial keep. Returns units actually kept — the caller decides
+     * whether the stack itself should now disappear (see {@link #isNowEmpty}).
      */
     private long trimStack(ItemStack stack, long allowed, int depth) {
-        if (allowed <= 0) {
-            return 0;
-        }
-
+        // No early-return shortcut for allowed <= 0: a container (Bundle/Shulker) still needs to
+        // recurse in that case so its own gold gets stripped out in place, even though nothing of
+        // it will be kept — skipping the recursion would leave the rejected gold sitting
+        // untouched inside a container that isNowEmpty() then wrongly judges as non-empty.
         Material type = stack.getType();
         if (type == Material.GOLD_INGOT || type == Material.GOLD_NUGGET) {
             long unitsPerItem = type == Material.GOLD_INGOT ? CheeseUnits.INGOT_UNITS : CheeseUnits.NUGGET_UNITS;
