@@ -43,6 +43,15 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// The shaded jar (with sqlite-jdbc bundled) is the only artifact anyone should ever deploy — the
+// plain `jar` task's output is missing sqlite-jdbc entirely (a non-functional plugin jar) since
+// `implementation` dependencies aren't bundled by the plain jar task, only by shadowJar. Disabling
+// `jar` means shadowJar's classifier-less output at build/libs/cheese-plugin-<version>.jar is
+// unambiguously the one real build product, instead of two tasks racing to write the same path.
+tasks.jar {
+    enabled = false
+}
+
 tasks.shadowJar {
     archiveClassifier.set("")
     relocate("org.sqlite", "dev.pyroforge.cheese.lib.sqlite")

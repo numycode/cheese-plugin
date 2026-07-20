@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EconomyStorageTest {
@@ -53,6 +54,26 @@ class EconomyStorageTest {
 
         assertEquals(150, storage.getCurrentSupply());
         assertEquals(9000, storage.getMaxSupply());
+    }
+
+    @Test
+    void setMaxSupplyRejectsNegativeValues() throws Exception {
+        storage.seedInitialState(150, 8100);
+
+        assertThrows(IllegalArgumentException.class, () -> storage.setMaxSupply(-1));
+        assertEquals(8100, storage.getMaxSupply());
+    }
+
+    @Test
+    void setMaxSupplyAllowsSettingBelowCurrentSupply() throws Exception {
+        // Deliberately allowed — an admin tightening the cap without an immediate clawback is a
+        // legitimate distinct action from /cheese remove (see EconomyStorage.setMaxSupply's doc).
+        storage.seedInitialState(150, 8100);
+
+        storage.setMaxSupply(100);
+
+        assertEquals(150, storage.getCurrentSupply());
+        assertEquals(100, storage.getMaxSupply());
     }
 
     @Test

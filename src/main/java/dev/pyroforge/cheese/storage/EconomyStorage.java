@@ -76,7 +76,18 @@ public final class EconomyStorage implements AutoCloseable {
         }
     }
 
+    /**
+     * @throws IllegalArgumentException if {@code maxSupplyUnits} is negative — a negative cap has
+     *     no valid interpretation under any admin intent. Deliberately does NOT reject a cap set
+     *     below currentSupply: an admin intentionally tightening the cap without physically
+     *     clawing back gold immediately (freezing new minting/creation until natural destruction
+     *     events bring currentSupply back under it) is a legitimate use of this command, distinct
+     *     from {@code /cheese remove} which lowers both together.
+     */
     public void setMaxSupply(long maxSupplyUnits) throws SQLException {
+        if (maxSupplyUnits < 0) {
+            throw new IllegalArgumentException("maxSupplyUnits must not be negative: " + maxSupplyUnits);
+        }
         synchronized (lock) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "UPDATE economy_state SET max_supply = ? WHERE id = 1")) {

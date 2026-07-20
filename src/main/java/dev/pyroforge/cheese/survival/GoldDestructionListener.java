@@ -21,6 +21,11 @@ import dev.pyroforge.cheese.storage.EconomyStorage;
  * {@link CraftingGoldDiff}) is a live vector even in Creative mode: crafting-table recipes still
  * consume their ingredients normally in Creative, unlike the Item Frame/Armor Stand/Decorated Pot
  * placement quirk that {@code DuplicationGuardListener} handles separately.
+ *
+ * <p>Both handlers use {@code ignoreCancelled = true}: if another plugin (or the vanilla engine —
+ * e.g. no room for the craft result) cancels the barter/craft, nothing was actually consumed, so
+ * decrementing supply anyway would silently under-count currentSupply over time for something
+ * that never happened.
  */
 public final class GoldDestructionListener implements Listener {
 
@@ -36,7 +41,7 @@ public final class GoldDestructionListener implements Listener {
         this.logger = logger;
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onPiglinBarter(PiglinBarterEvent event) {
         long units = goldCounter.countItemStack(event.getInput());
         if (units == 0) {
@@ -49,7 +54,7 @@ public final class GoldDestructionListener implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
         ItemStack[] matrix = event.getInventory().getMatrix();
         ItemStack result = event.getInventory().getResult();

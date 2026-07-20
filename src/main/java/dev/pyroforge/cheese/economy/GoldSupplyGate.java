@@ -1,11 +1,18 @@
 package dev.pyroforge.cheese.economy;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 import org.bukkit.Material;
+import org.bukkit.block.BlockState;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import dev.pyroforge.cheese.storage.EconomyStorage;
 
@@ -14,6 +21,10 @@ import dev.pyroforge.cheese.storage.EconomyStorage;
  * natural loot generation) — see docs/SPEC.md "Why a scan alone can't enforce the cap". Wraps
  * {@link EconomyStorage}'s cap-check-and-increment with the bookkeeping needed to trim a
  * partially-over-cap batch down to what's actually allowed, rather than an all-or-nothing cancel.
+ *
+ * <p>Trimming recurses into nested containers (Bundles, item-form Shulker Boxes) with the same
+ * traversal {@link GoldCounter} uses to count them, up to the same depth cap — so gold hidden
+ * inside one of these can't slip past admission accounting by being packed into a mob drop.
  */
 public final class GoldSupplyGate {
 
@@ -66,41 +77,103 @@ public final class GoldSupplyGate {
 
     /** Trims {@code items}' gold down to {@code allowedUnits}, in place. Returns units actually kept. */
     private long trimGoldTo(List<ItemStack> items, long allowedUnits) {
+        return trimList(items, allowedUnits, 0);
+    }
+
+    /**
+     * Trims gold across a plain list of stacks (a top-level batch, or a Bundle's contents) down to
+     * {@code allowedUnits}, in place. A stack that had gold but none of it fits is removed
+     * entirely — including any nested container, so no unaccounted gold survives inside it —
+     * while a stack with no gold at all is never touched.
+     */
+    private long trimList(List<ItemStack> stacks, long allowedUnits, int depth) {
         long remaining = allowedUnits;
         long kept = 0;
-        Iterator<ItemStack> iterator = items.iterator();
+        Iterator<ItemStack> iterator = stacks.iterator();
         while (iterator.hasNext()) {
             ItemStack stack = iterator.next();
-            long unitsPerItem = unitsPerItem(stack == null ? null : stack.getType());
-            if (unitsPerItem == 0) {
+            long stackTotal = goldCounter.countItemStack(stack);
+            if (stackTotal == 0) {
                 continue;
             }
-            long stackUnits = unitsPerItem * stack.getAmount();
-            if (remaining >= stackUnits) {
-                remaining -= stackUnits;
-                kept += stackUnits;
-                continue;
-            }
-            long keepableItems = remaining / unitsPerItem;
-            long keptUnits = keepableItems * unitsPerItem;
-            remaining -= keptUnits;
-            kept += keptUnits;
-            if (keepableItems <= 0) {
+            long stackKept = trimStack(stack, Math.max(0, remaining), depth);
+            remaining -= stackKept;
+            kept += stackKept;
+            if (stackKept == 0) {
                 iterator.remove();
-            } else {
-                stack.setAmount((int) keepableItems);
             }
         }
         return kept;
     }
 
-    private long unitsPerItem(Material material) {
-        if (material == Material.GOLD_INGOT) {
-            return CheeseUnits.INGOT_UNITS;
+    /**
+     * Trims gold within a fixed-slot {@link Inventory} (a filled Shulker Box's contents) down to
+     * {@code allowedUnits}, preserving slot indices — nulling out a slot whose gold is fully
+     * rejected rather than shifting the ones after it.
+     */
+    private long trimInventory(Inventory inventory, long allowedUnits, int depth) {
+        long remaining = allowedUnits;
+        long kept = 0;
+        ItemStack[] contents = inventory.getContents();
+        for (int slot = 0; slot < contents.length; slot++) {
+            ItemStack stack = contents[slot];
+            long stackTotal = goldCounter.countItemStack(stack);
+            if (stackTotal == 0) {
+                continue;
+            }
+            long stackKept = trimStack(stack, Math.max(0, remaining), depth);
+            remaining -= stackKept;
+            kept += stackKept;
+            inventory.setItem(slot, stackKept == 0 ? null : stack);
         }
-        if (material == Material.GOLD_NUGGET) {
-            return CheeseUnits.NUGGET_UNITS;
+        return kept;
+    }
+
+    /**
+     * Trims a single stack (already known to hold {@code > 0} gold units) down to {@code allowed},
+     * mutating it in place for a partial keep. Returns units actually kept; 0 means the caller
+     * should drop this stack (and anything nested inside it) entirely.
+     */
+    private long trimStack(ItemStack stack, long allowed, int depth) {
+        if (allowed <= 0) {
+            return 0;
         }
-        return 0;
+
+        Material type = stack.getType();
+        if (type == Material.GOLD_INGOT || type == Material.GOLD_NUGGET) {
+            long unitsPerItem = type == Material.GOLD_INGOT ? CheeseUnits.INGOT_UNITS : CheeseUnits.NUGGET_UNITS;
+            long keepableItems = Math.min(stack.getAmount(), allowed / unitsPerItem);
+            if (keepableItems <= 0) {
+                return 0;
+            }
+            if (keepableItems < stack.getAmount()) {
+                stack.setAmount((int) keepableItems);
+            }
+            return keepableItems * unitsPerItem;
+        }
+
+        if (depth >= goldCounter.getMaxDepth() || !stack.hasItemMeta()) {
+            return 0;
+        }
+
+        // Bundles/filled Shulkers are always unstackable in vanilla (max stack size 1), so unlike
+        // GoldCounter's defensive "nested * stack.getAmount()" this doesn't need to scale by
+        // stack.getAmount() — there's only ever one such container per stack in practice.
+        ItemMeta meta = stack.getItemMeta();
+        long kept = 0;
+        if (meta instanceof BundleMeta bundleMeta) {
+            List<ItemStack> innerItems = new ArrayList<>(bundleMeta.getItems());
+            kept = trimList(innerItems, allowed, depth + 1);
+            bundleMeta.setItems(innerItems);
+            stack.setItemMeta(meta);
+        } else if (meta instanceof BlockStateMeta blockStateMeta && blockStateMeta.hasBlockState()) {
+            BlockState state = blockStateMeta.getBlockState();
+            if (state instanceof InventoryHolder holder) {
+                kept = trimInventory(holder.getInventory(), allowed, depth + 1);
+                blockStateMeta.setBlockState(state);
+                stack.setItemMeta(meta);
+            }
+        }
+        return kept;
     }
 }

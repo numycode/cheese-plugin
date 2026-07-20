@@ -9,6 +9,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Piglin;
 import org.bukkit.event.entity.PiglinBarterEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,5 +75,25 @@ class GoldDestructionListenerTest {
         listener.onPiglinBarter(event);
 
         assertEquals(0, storage.getCurrentSupply());
+    }
+
+    @Test
+    void ignoresACancelledBarterViaTheRealEventBus() throws Exception {
+        // Unlike the other tests here, this dispatches through Bukkit's real event bus (rather
+        // than calling the listener method directly) — @EventHandler(ignoreCancelled = true) is
+        // enforced by that dispatch machinery, not by anything in the listener's own code, so a
+        // direct method call wouldn't actually exercise it.
+        storage.seedInitialState(50, 8100);
+        Plugin plugin = MockBukkit.createMockPlugin();
+        server.getPluginManager().registerEvents(listener, plugin);
+        World world = server.addSimpleWorld("world");
+        Piglin piglin = world.spawn(new Location(world, 0, 64, 0), Piglin.class);
+        PiglinBarterEvent event = new PiglinBarterEvent(
+                piglin, new ItemStack(Material.GOLD_INGOT, 1), List.of());
+        event.setCancelled(true);
+
+        server.getPluginManager().callEvent(event);
+
+        assertEquals(50, storage.getCurrentSupply());
     }
 }

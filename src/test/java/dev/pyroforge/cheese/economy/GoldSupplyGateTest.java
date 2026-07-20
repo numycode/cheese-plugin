@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BundleMeta;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,5 +121,59 @@ class GoldSupplyGateTest {
 
         assertEquals(94, storage.getCurrentSupply());
         assertEquals(1, drops.get(0).getAmount());
+    }
+
+    @Test
+    void admitsGoldHiddenInsideABundleWhenItFitsUnderTheCap() throws Exception {
+        storage.seedInitialState(0, 100);
+        List<ItemStack> drops = new ArrayList<>(List.of(bundleOf(
+                new ItemStack(Material.GOLD_NUGGET, 5), new ItemStack(Material.STICK, 1))));
+
+        gate.admitList(drops);
+
+        assertEquals(5, storage.getCurrentSupply());
+        assertEquals(1, drops.size());
+        BundleMeta meta = (BundleMeta) drops.get(0).getItemMeta();
+        assertEquals(2, meta.getItems().size());
+    }
+
+    @Test
+    void trimsGoldInsideABundleWhenOnlyPartOfItFitsAndLeavesNonGoldContentsAlone() throws Exception {
+        storage.seedInitialState(95, 100);
+        List<ItemStack> drops = new ArrayList<>(List.of(bundleOf(
+                new ItemStack(Material.GOLD_NUGGET, 10), new ItemStack(Material.STICK, 1))));
+
+        gate.admitList(drops);
+
+        assertEquals(100, storage.getCurrentSupply());
+        assertEquals(1, drops.size());
+        BundleMeta meta = (BundleMeta) drops.get(0).getItemMeta();
+        List<ItemStack> inner = meta.getItems();
+        assertEquals(2, inner.size());
+        assertEquals(Material.GOLD_NUGGET, inner.get(0).getType());
+        assertEquals(5, inner.get(0).getAmount());
+        assertEquals(Material.STICK, inner.get(1).getType());
+    }
+
+    @Test
+    void removesAnEntireBundleWhenNoneOfItsGoldCanFit() throws Exception {
+        storage.seedInitialState(100, 100);
+        List<ItemStack> drops = new ArrayList<>(List.of(bundleOf(
+                new ItemStack(Material.GOLD_NUGGET, 5), new ItemStack(Material.STICK, 1))));
+
+        gate.admitList(drops);
+
+        assertEquals(100, storage.getCurrentSupply());
+        assertTrue(drops.isEmpty());
+    }
+
+    private ItemStack bundleOf(ItemStack... contents) {
+        ItemStack bundle = new ItemStack(Material.BUNDLE, 1);
+        BundleMeta meta = (BundleMeta) bundle.getItemMeta();
+        for (ItemStack item : contents) {
+            meta.addItem(item);
+        }
+        bundle.setItemMeta(meta);
+        return bundle;
     }
 }

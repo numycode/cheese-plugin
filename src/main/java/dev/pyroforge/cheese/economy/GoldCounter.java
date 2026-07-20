@@ -23,6 +23,11 @@ public final class GoldCounter {
         this.maxDepth = maxDepth;
     }
 
+    /** The nested-container recursion cap this counter was built with. */
+    public int getMaxDepth() {
+        return maxDepth;
+    }
+
     public long countInventory(Inventory inventory) {
         long total = 0;
         for (ItemStack stack : inventory.getContents()) {
