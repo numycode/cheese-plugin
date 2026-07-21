@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Chest;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.ItemFrame;
@@ -36,9 +37,12 @@ import dev.pyroforge.cheese.economy.GoldCounter;
  * happens on the main thread, per docs/SPEC.md's threading boundary.
  *
  * <p>Block entities and world entities are both InventoryHolder-driven generically in this
- * Paper API version (Shelf, Decorated Pot, chested horses/llamas, chest boats, Allay, Piglin,
- * etc. all implement InventoryHolder), so a single polymorphic check covers nearly every scan
- * target in the spec without enumerating each concrete type.
+ * Paper API version — verified against the real paper-api jar, not assumed: Shelf and Decorated
+ * Pot implement it via {@code TileStateInventoryHolder}, chested horses/llamas via
+ * {@code AbstractHorse}, chest boats/Allay/Piglin/Pillager/villagers directly — so a single
+ * polymorphic check covers nearly every scan target in the spec without enumerating each concrete
+ * type. {@link Chest} (including Trapped Chest, which shares the same interface) is the one
+ * deliberate exception — see the comment in {@link #scanChunk} for why it needs its own branch.
  */
 public final class FullEconomyScanner {
 
@@ -187,7 +191,18 @@ public final class FullEconomyScanner {
         String worldName = chunk.getWorld().getName();
 
         for (BlockState state : chunk.getTileEntities()) {
-            if (state instanceof InventoryHolder holder) {
+            if (state instanceof Chest chest) {
+                // Chest#getInventory() (the generic InventoryHolder path below) returns the
+                // MERGED 54-slot DoubleChestInventory for either physical half of a double
+                // chest — reading it from both halves' BlockState (as this loop naturally does)
+                // would double-count everything inside. getBlockInventory() is this block's own
+                // unmerged 27 slots, so summing it across both halves gives the true total.
+                // Confirmed firsthand against a real server: a double chest holding a single
+                // gold ingot was reported as 18 units (2x 9) via getInventory(), 9 via this.
+                // Also correct for Trapped Chest (shares this same interface) and Copper Chest
+                // (doesn't merge at all, so getBlockInventory() == getInventory() for it anyway).
+                result.add(worldName, "block-entities", goldCounter.countInventory(chest.getBlockInventory()));
+            } else if (state instanceof InventoryHolder holder) {
                 result.add(worldName, "block-entities", goldCounter.countInventory(holder.getInventory()));
             }
         }
