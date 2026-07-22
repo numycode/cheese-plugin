@@ -1,5 +1,5 @@
 # cheese-plugin
-(this plugin is completely AI generated, so be careful! if you find any issues, please report them. i recommend luckperms to use with this plugin.)
+**(this plugin is completely AI generated, so be careful! if you find any issues, please report them. i recommend luckperms to use with this plugin.)**
 
 A Paper 26.1.2 plugin that manages a physical currency called Cheese for small private servers.
 
