@@ -1,0 +1,35 @@
+# Default cap used only when the economy has never been seeded before (see storage.file).
+# After the first-run scan, the tracked cap lives in SQLite and this value is no longer read.
+maxSupply: 8100
+
+# Worlds included in block/entity scans. Player and ender-chest scans are always global and
+# are NOT filtered by this list (see docs/SPEC.md).
+worlds:
+  - world
+  - world_nether
+  - world_the_end
+
+# Whether the scan/seed reads online players' carried inventories. Offline players are not
+# scanned yet (see docs/SPEC.md "Player (HumanEntity)" — Bukkit/Paper exposes no public API
+# for an offline player's inventory or ender chest).
+includePlayerInventoriesInAudit: true
+
+# Recursion cap for nested containers (Bundles, item-form Shulker Boxes).
+nestedContainerMaxDepth: 10
+
+# Cancel InventoryCreativeEvent grabs of Gold Ingot/Nugget from the Creative menu, without
+# blocking a player from rearranging gold they already hold. See CreativeGoldGuard.
+blockGoldFromCreativeMenu: true
+
+# Cancel placing Gold Ingots/Nuggets into an empty Item Frame, onto an Armor Stand, or into a
+# Decorated Pot — Creative mode doesn't consume the item on placement, so these would otherwise
+# duplicate gold. See DuplicationGuard.
+blockGoldDuplicationTricks: true
+
+# Minimum seconds between admin-triggered "/cheese scan --full" runs (and "/cheese audit", which
+# runs one). Even batched/async, a full sweep touches a lot of disk I/O — this is cheap insurance
+# against spamming it. Safe to lower toward 0 on a small world/server.
+fullScanCooldownSeconds: 3600
+
+storage:
+  file: cheese.db
