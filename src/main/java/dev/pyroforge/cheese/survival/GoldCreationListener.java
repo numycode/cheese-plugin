@@ -1,6 +1,7 @@
 package dev.pyroforge.cheese.survival;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -66,12 +67,15 @@ public final class GoldCreationListener implements Listener {
 
     @EventHandler
     public void onLootGenerate(LootGenerateEvent event) {
-        List<ItemStack> loot = event.getLoot();
+        // Copy defensively rather than trimming event.getLoot() in place: admitList() removes
+        // entries via Iterator.remove(), which throws UnsupportedOperationException on an
+        // immutable list, and nothing guarantees this event hands back a mutable one. Persist the
+        // (possibly trimmed) copy back via setLoot() — LootGenerateEvent exposes that alongside
+        // getLoot() specifically for this, unlike EntityDeathEvent, which is fine to mutate in
+        // place and has no setter at all.
+        List<ItemStack> loot = new ArrayList<>(event.getLoot());
         try {
             gate.admitList(loot);
-            // LootGenerateEvent exposes setLoot() alongside getLoot() (unlike EntityDeathEvent,
-            // which is fine to mutate in place) — call it explicitly rather than assuming
-            // getLoot() returned a live reference.
             event.setLoot(loot);
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Failed to record generated loot against the Cheese supply.", e);

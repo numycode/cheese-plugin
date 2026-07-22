@@ -68,6 +68,11 @@ public final class CreativeGoldGuard {
         ledger.lastTick = currentTick;
     }
 
+    /** Drops a player's ledger, e.g. on disconnect — nothing worth carrying across sessions. */
+    public void forgetPlayer(UUID playerId) {
+        ledgers.remove(playerId);
+    }
+
     private Ledger activeLedger(UUID playerId, int currentTick) {
         Ledger ledger = ledgers.get(playerId);
         if (ledger == null) {

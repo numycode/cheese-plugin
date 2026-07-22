@@ -1,13 +1,17 @@
 package dev.pyroforge.cheese.survival;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.event.inventory.FurnaceSmeltEvent;
+import org.bukkit.event.world.LootGenerateEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.loot.LootContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,11 +28,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Covers the FurnaceSmeltEvent path end-to-end with a real event object, since its constructor
- * is simple enough to build directly. EntityDeathEvent and LootGenerateEvent aren't covered here
- * — constructing a realistic DamageSource/LootContext isn't worth the risk of testing something
- * that doesn't match a live server; their shared logic (GoldSupplyGate) already has full coverage
- * in GoldSupplyGateTest, and the thin event glue here should be checked manually (see class doc).
+ * Covers the FurnaceSmeltEvent and LootGenerateEvent paths end-to-end with real event objects.
+ * EntityDeathEvent isn't covered here — constructing a realistic DamageSource isn't worth the
+ * risk of testing something that doesn't match a live server; its shared logic (GoldSupplyGate)
+ * already has full coverage in GoldSupplyGateTest, and the thin event glue should be checked
+ * manually (see class doc). The real event-firing semantics for all three (e.g. whether drops
+ * are read before or after other plugins mutate them) still need live-server verification —
+ * these tests only prove the listener's own logic is correct given a real event object.
  */
 class GoldCreationListenerTest {
 
@@ -90,5 +96,37 @@ class GoldCreationListenerTest {
 
         assertFalse(event.isCancelled());
         assertEquals(0, storage.getCurrentSupply());
+    }
+
+    private LootGenerateEvent lootEvent(ItemStack... loot) {
+        // A real server always hands LootGenerateEvent a genuinely mutable list — its own
+        // setLoot() clears its internal storage in place (confirmed: constructing this event with
+        // an immutable List.of(...) makes ANY setLoot() call throw, regardless of listener code),
+        // so an immutable list at this point isn't a realistic scenario to simulate.
+        World world = server.addSimpleWorld("world");
+        Location location = new Location(world, 0, 64, 0);
+        LootContext context = new LootContext.Builder(location).build();
+        return new LootGenerateEvent(world, null, null, null, context, new ArrayList<>(List.of(loot)), false);
+    }
+
+    @Test
+    void admitsGeneratedLootThatFitsUnderTheCap() throws Exception {
+        storage.seedInitialState(0, 100);
+        LootGenerateEvent event = lootEvent(new ItemStack(Material.GOLD_NUGGET, 5));
+
+        listener.onLootGenerate(event);
+
+        assertEquals(5, storage.getCurrentSupply());
+    }
+
+    @Test
+    void trimsGeneratedLootDownToWhatFitsUnderTheCap() throws Exception {
+        storage.seedInitialState(95, 100);
+        LootGenerateEvent event = lootEvent(new ItemStack(Material.GOLD_NUGGET, 10));
+
+        listener.onLootGenerate(event);
+
+        assertEquals(100, storage.getCurrentSupply());
+        assertEquals(5, event.getLoot().get(0).getAmount());
     }
 }

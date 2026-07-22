@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import net.kyori.adventure.text.Component;
 
@@ -52,6 +53,15 @@ public final class CreativeInventoryListener implements Listener {
         // inventory model, since creative mode is client-authoritative; force it explicitly.
         player.updateInventory();
         maybeWarn(player);
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        // Both maps are keyed by UUID with no other eviction — without this they'd grow by one
+        // entry per player who has ever grabbed gold or been warned, for the life of the server.
+        UUID playerId = event.getPlayer().getUniqueId();
+        lastMessageTick.remove(playerId);
+        guard.forgetPlayer(playerId);
     }
 
     private void maybeWarn(Player player) {

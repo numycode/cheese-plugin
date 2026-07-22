@@ -93,4 +93,20 @@ class CreativeGoldGuardTest {
         assertFalse(guard.shouldBlock(PLAYER, gold, EMPTY, 100));
         assertTrue(guard.shouldBlock(otherPlayer, EMPTY, gold, 100));
     }
+
+    @Test
+    void forgetPlayerDropsAnyOutstandingReleaseCredit() {
+        ItemStack gold = new ItemStack(Material.GOLD_INGOT, 5);
+        assertFalse(guard.shouldBlock(PLAYER, gold, EMPTY, 100));
+
+        guard.forgetPlayer(PLAYER);
+
+        // The credit from the release above is gone, so this now looks like a fresh grab.
+        assertTrue(guard.shouldBlock(PLAYER, EMPTY, gold, 101));
+    }
+
+    @Test
+    void forgetPlayerIsSafeForAPlayerWithNoLedger() {
+        guard.forgetPlayer(UUID.randomUUID());
+    }
 }
