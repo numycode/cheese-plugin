@@ -50,7 +50,7 @@ The **server console** bypasses these checks entirely — console/RCON access is
 
 Grant admin access to a trusted user with LuckPerms:
 
-```
+```text
 /lp user <name> permission set cheese.admin true
 ```
 
@@ -75,13 +75,13 @@ No LuckPerms-specific integration is needed in the plugin — it just checks sta
 
 Requires **JDK 25** (Minecraft 26.1 runs on Java 25).
 
-```
+```bash
 ./gradlew build
 ```
 
 The single deployable artifact is:
 
-```
+```text
 build/libs/cheese-plugin-0.1.0.jar
 ```
 
