@@ -221,3 +221,20 @@ Produces one artifact: `build/libs/cheese-plugin-0.1.0.jar` (shaded, sqlite-jdbc
 relocated). The plain `jar` task is deliberately disabled (`tasks.jar { enabled = false }`) —
 `shadowJar`'s classifier-less output would otherwise collide with it at the same path, and the
 unshaded jar is non-functional anyway (missing sqlite-jdbc). See `build.gradle.kts` comments.
+
+## CI and releases (`.github/workflows/`)
+
+- `build.yml` — runs `./gradlew build` (compile + test + shadowJar) on every push to any branch,
+  and uploads the resulting jar as a workflow artifact. Pure sanity check; no publishing.
+- `release.yml` — fires on pushing a tag matching `v*.*.*`. It first checks that the tag (minus
+  the `v`) matches the `version` in `build.gradle.kts` via `./gradlew properties --property
+  version`, and fails loudly if they don't match — this catches the easy mistake of tagging
+  without bumping the version first (the jar filename is derived from `project.version`, not the
+  git tag, so a mismatch would silently publish a wrongly-named or stale-content jar). It then
+  builds and runs `gh release create` (the GitHub CLI, preinstalled on runners — deliberately not
+  a third-party marketplace action, to keep the release step's trust surface minimal) to publish
+  the shaded jar as a release asset with auto-generated release notes.
+- **To cut a release:** bump `version` in `build.gradle.kts`, commit, then `git tag vX.Y.Z && git
+  push origin vX.Y.Z`. Don't tag before bumping — the version-match check will reject it.
+- Both workflows use Temurin 25 (`actions/setup-java@v4`, `distribution: temurin`), matching the
+  toolchain in `build.gradle.kts`.
